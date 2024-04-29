@@ -1,0 +1,201 @@
+
+# cosmic doesn`t` provide API for connecting database, so dirrectly download database to use  
+# install.packages("promises")  
+# library(promises)  
+
+# connect db
+getwd()
+source("Rcode/db_connect_common.R")
+source("Rcode/read_bed.R")
+# change list to json charactor for post request use
+variants_char <- character()
+variant_list_liftover <- varraint_array # for liftover
+for (i in 1:length(varraint_array)) {
+  character_ <- paste("'",varraint_array[[i]],"'")
+  variants_char <- append(variants_char, character_)
+}
+variants_char <- paste(variants_char, collapse = ',')
+variants_char <- paste("{'variants':","[",variants_char,"]}")
+variants_char <- gsub(" ","",variants_char)
+variants_char <- gsub("'",'"',variants_char)
+
+# steps:
+    # 1. connect cosmic, if the score of cosmic already over 2, dont need to connect other db  
+    # 2. connect SIFT , mutation test, the feedback of all them are deleterious ===> +0.5  
+
+## connect cosmic
+db_type <- "varsome_liftover"  # 到时候要修改为动态的
+sift_url <- ""
+mutation_url <- ""
+oncokb_url <- ""
+civic_url <- ""
+varsome_url <- ""
+varsome_liftover_url <- ""
+sift_search_id <- "rs56116432" ## SIFT request params
+mutation_variant_num <- "17:37879657C%3EG" ## mutation test request params
+# mutation_variant_num <- "ENST00000269571"
+oncokb_queries_list <- list(
+    referenceGenome = "",  
+    hugoSymbol = "BRAF",
+    entrezGeneId = "",
+    alteration = "V600E",
+    consequence = "",
+    proteinStart = "",
+    proteinEnd = "",
+    tumorType = ""
+)
+oncokb_queries_real <- paste0("referenceGenome=", oncokb_queries_list$referenceGenome,"&",   
+                                "hugoSymbol=", oncokb_queries_list$hugoSymbol, "&", 
+                                "entrezGeneId=", oncokb_queries_list$entrezGeneId, "&",  
+                                "alteration=", oncokb_queries_list$alteration,"&",
+                                "consequence=", oncokb_queries_list$consequence,"&",
+                                "proteinStart=", oncokb_queries_list$proteinStart,"&",  
+                                "proteinEnd=", oncokb_queries_list$proteinEnd,"&",
+                                "tumorType=", oncokb_queries_list$tumorType
+                                )  
+
+civic_entity_id <- "12"
+
+if(db_type == "SIFT") {  
+    sift_url <- paste("https://rest.ensembl.org/vep/human/id/", sift_search_id, sep = " ", " ")   
+}else if (db_type == "mutation") {
+    mutation_url <- paste("https://www.genecascade.org/MT2021/MT_API102.cgi?variants=",mutation_variant_num, sep="")  
+} else if (db_type == "oncokb") {
+    oncokb_url <- paste("https://www.oncokb.org/api/v1/annotate/mutations/byProteinChange?",oncokb_queries_real, sep="")  
+} else if(db_type == "civic") {
+   civic_url <- paste("https://civicdb.org/links?idtype=variant&id=", civic_entity_id, sep="")
+} else if(db_type == 'varsome') {
+    varsome_url <- "https://api.varsome.com/lookup/batch/hg19?add-source-databases=all"
+} else if(db_type == "varsome_liftover"){
+    varsome_liftover_url <- "https://api.varsome.com/lookup/lifted-over-variant/"
+}
+#dbname, host, port, user, password, API, parameter_num
+cosmic_obj <- list(
+    API = FALSE,  
+    param_type = "cosmic",
+    dbname = "cosmic_database",
+    host = "127.0.0.1",
+    port = "3306",
+    user = "root",
+    password = "123456"
+)
+sift_obj <- list(
+    API = TRUE,  
+    param_type = "SIFT",
+    url = sift_url,
+    req_type = "GET"
+)
+mutation_obj <- list(
+    API = TRUE,  
+    param_type = "mutation",
+    url = mutation_url,
+    req_type = "GET"
+)
+oncokb_obj <- list(
+    API = TRUE,
+    param_type = "oncokb",
+    url = oncokb_url,
+    req_type = "GET",
+    token = "Bearer 6481744b-096a-493e-a8ef-5617b848c1cf"   ## token expired in 344 days
+)
+civic_obj <- list(
+    API = TRUE,
+    param_type = "civic",
+    url = civic_url,
+    req_type = "GET"
+)
+
+# print(varraint_array)
+varsome_obj <- list(
+    API = TRUE,
+    param_type = "varsome",
+    url = varsome_url,
+    req_type = "POST",
+    token = "Token W0beUnL?kAjoieM4ueklHW%p5AzMVaG@ju@8dD@y",
+    body = variants_char
+)
+
+varsome_liftover_obj <- list(
+  API = TRUE,
+  param_type = "varsome",
+  url = varsome_liftover_url,
+  req_type = "GET",
+  token = "Token W0beUnL?kAjoieM4ueklHW%p5AzMVaG@ju@8dD@y",
+  body = variant_list_liftover
+)
+# calculate score
+search_result <- list()
+calculate_score <- function(search_result,db_type) {
+  print('进入回调中')
+  
+  if(db_type == 'varsome_liftover'){
+    chr_list_liftover
+    write(chr_list_liftover,file="/data/chr_list_liftover.txt")
+    db_type = 'varsome'
+    db_check_fun(db_type)
+  }
+  search_result <- search_result
+  
+  # print(search_result$param_type)
+  # print(search_result[[2]]$oncogenic)
+  print(search_result)
+  
+  
+  # 1. 先检查cosmic
+  # rules: 如果  Num : solid ≥ 50  and haematological ≥ 10 ====》 +2分 =====> class: Likely Pathogenic  
+  #如果  Num: solid ≤ 10 and haematological ≤ 5 ===》 0分 =====》 class: VUS   
+  #如果  Num: 50 > solid > 10 and  10 > haematological > 5 ====》 +1 分
+  
+  # 2. 检查sift， mutation master  
+  # rules: 两种都预测有害影响时 ====》+0.5 分
+  
+  # 3. 检查PubMed， JX-CKB， MDaderson， My Cancer Genome   
+  # rules: 其中有一个数据库报告了与癌症相关的功能关系 ===》 +0.5
+  # Not reported ===》 0分
+  # No ====》 -1分
+  
+  # 4. 检查CIVIC， ClinVar， OncoKB， VarSome
+  # rules: 其中有一个数据库报告(likely) pathogenic =====> +0.5
+  # Not described/unknown ====》 0分
+  # As (Likely) Benign ====》-1分
+  
+  if(search_result$param_type == 'cosmic'){
+    # the logic for parameter1(cosmic)
+    # 需要 num_entries ， entry_type
+    if( search_result[[2]]$entry_type == 'solid' & Hemato){ #这里的名字和判断条件要根据到时候varsome返回的结构来改
+      
+      # if( search_result[[2]]$num_entries >= 50 & Hemato){ #这里的名字和判断条件要根据到时候varsome返回的结构来改
+      
+    }
+    
+    # calinvar2: 字段clinical_significance
+    # dbnsfp： 字段mutationtaster_pred，sift_pred， 值为 D ===》 有害的
+  }
+}
+
+print(varsome_obj$body)
+param <- ""
+search_result <- ""
+
+db_check_fun <- function(db_type) {
+    if ( db_type == "cosmic" | db_type == "original") {  
+        param <- cosmic_obj  
+    }else if (db_type == "sift") { 
+        param <- sift_obj  
+    }else if (db_type == "mutation") {  
+        param <- mutation_obj  
+    }else if (db_type == 'oncokb'){  
+        param <- oncokb_obj  
+    }else if ( db_type == 'civic' ) {
+        param <- civic_obj
+    }else if(db_type == 'varsome') {
+        param <- varsome_obj
+    }else if(db_type == 'varsome_liftover') {
+        param <- varsome_liftover_obj
+    }
+    search_result <- connect_function(param) # list[[1]]: param_type, list[[2]]: list ---> searched information
+    calculate_score(search_result,db_type)
+}
+
+db_check_fun(db_type)
+

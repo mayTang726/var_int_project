@@ -1,0 +1,213 @@
+# connect db
+getwd()
+source('Rcode/db_connect_common.R')
+system(git add .)
+# cosmic doesn`t` provide API for connecting database, so dirrectly download database to use
+# install.packages("promises")
+# library(promises)
+# connect db
+getwd()
+source("Rcode/db_connect_common.R")
+# steps:
+# 1. connect cosmic, if the score of cosmic already over 2, dont need to connect other db
+# 2. connect SIFT , mutation test, the feedback of all them are deleterious ===> +0.5
+## connect cosmic
+db_type <- "varsome"  # 到时候要修改为动态的
+sift_url <- ""
+mutation_url <- ""
+oncokb_url <- ""
+civic_url <- ""
+varsome_url <- ""
+sift_search_id <- "rs56116432" ## SIFT request params
+mutation_variant_num <- "21:33039603A%3EC" ## mutation test request params
+oncokb_queries_list <- list(
+referenceGenome = "",
+hugoSymbol = "BRAF",
+entrezGeneId = "",
+alteration = "V600E",
+consequence = "",
+proteinStart = "",
+proteinEnd = "",
+tumorType = ""
+)
+oncokb_queries_real <- paste0("referenceGenome=", oncokb_queries_list$referenceGenome,"&",
+"hugoSymbol=", oncokb_queries_list$hugoSymbol, "&",
+"entrezGeneId=", oncokb_queries_list$entrezGeneId, "&",
+"alteration=", oncokb_queries_list$alteration,"&",
+"consequence=", oncokb_queries_list$consequence,"&",
+"proteinStart=", oncokb_queries_list$proteinStart,"&",
+"proteinEnd=", oncokb_queries_list$proteinEnd,"&",
+"tumorType=", oncokb_queries_list$tumorType
+)
+civic_entity_id <- "12"
+if(db_type == "SIFT") {
+sift_url <- paste("https://rest.ensembl.org/vep/human/id/", sift_search_id, sep = " ", " ")
+}else if (db_type == "mutation") {
+mutation_url <- paste("https://www.genecascade.org/MT2021/MT_API102.cgi?variants=",mutation_variant_num, sep="")
+} else if (db_type == "oncokb") {
+oncokb_url <- paste("https://www.oncokb.org/api/v1/annotate/mutations/byProteinChange?",oncokb_queries_real, sep="")
+} else if(db_type == "civic") {
+civic_url <- paste("https://civicdb.org/links?idtype=variant&id=", civic_entity_id, sep="")
+} else if(db_type == 'varsome') {
+varsome_url <- "https://staging-api.varsome.com/lookup/chr17:37868204:G:C?add-all-data=1&add-varsome-user-entries=1&expand-pubmed-articles=1&add-region-databases=1&add-source-databases=all"
+# varsome_url <- ""
+}
+#dbname, host, port, user, password, API, parameter_num
+cosmic_obj <- list(
+API = FALSE,
+param_type = "cosmic",
+dbname = "cosmic_database",
+host = "127.0.0.1",
+port = "3306",
+user = "root",
+password = "123456"
+)
+sift_obj <- list(
+API = TRUE,
+param_type = "SIFT",
+url = sift_url,
+req_type = "GET"
+)
+mutation_obj <- list(
+API = TRUE,
+param_type = "mutation",
+url = mutation_url,
+req_type = "GET"
+)
+oncokb_obj <- list(
+API = TRUE,
+param_type = "oncokb",
+url = oncokb_url,
+req_type = "GET",
+token = "Bearer 6481744b-096a-493e-a8ef-5617b848c1cf"   ## token expired in 344 days
+)
+civic_obj <- list(
+API = TRUE,
+param_type = "civic",
+url = civic_url,
+req_type = "GET"
+)
+varsome_obj <- list(
+API = TRUE,
+param_type = "varsome",
+url = varsome_url,
+req_type = "GET",
+token = "Token W0beUnL?kAjoieM4ueklHW%p5AzMVaG@ju@8dD@y",
+body = list(
+variants = c("chr17:37868204::GC")
+)
+)
+param <- ""
+search_result <- ""
+db_check_fun <- function(db_type) {
+if ( db_type == "cosmic" | db_type == "original") {
+param <- cosmic_obj
+}else if (db_type == "sift") {
+param <- sift_obj
+}else if (db_type == "mutation") {
+param <- mutation_obj
+}else if (db_type == 'oncokb'){
+param <- oncokb_obj
+}else if ( db_type == 'civic' ) {
+param <- civic_obj
+}else if(db_type == 'varsome') {
+param <- varsome_obj
+}
+search_result <- connect_function(param) # list[[1]]: param_type, list[[2]]: list ---> searched information
+calculate_score(search_result)
+}
+db_check_fun(db_type)
+#parse .bed file
+bed_lines <- readLines('./data/hotspot_region_Oncomine_Focus_DNA_Hotspots_v1.4.bed', encoding = "UTF-8")[-1]
+bed_data <- read.table(text = bed_lines, header = FALSE, sep = "\t")
+# change list to dataframe
+bed_df <- data.frame(
+chromosome = character(),
+start_position = numeric(),
+end_position = numeric(),
+cosmic_id = character(),
+score = numeric(),
+strand = character(),
+variant_info = character(),
+stringsAsFactors = FALSE  # 确保字符型数据不会转换为因子
+)
+chromosome <- c(bed_data[1])
+start_position <- c(bed_data[2])
+end_position <- c(bed_data[3])
+cosmic_id <- c(bed_data[4])
+score <- c(bed_data[5])
+strand <- c(bed_data[6])
+variant_info <- c(bed_data[7])
+bed_df = data.frame(chromosome,start_position,end_position,cosmic_id,score,strand,variant_info)
+colnames(bed_df) <- c("chromosome", "start_position", "end_position", "cosmic_id", "score", "strand", "variant_info")
+#get chr17 df
+chr17_df <- subset(bed_df, chromosome == 'chr17')
+chr17_df$variant_info_search <- gsub("^REF=(.*?);.*?OBS=(.*?);.*$", "\\1:\\2", chr17_df$variant_info)
+chr17_df$search_column <- apply(chr17_df, 1, function(row){
+paste(row['chromosome'],row['start_position'],row['variant_info_search'], sep = ':')
+})
+#search variant information in loop
+print(chr17_df)
+#connect varsome
+View(chr17_df)
+variant_info_split <- strsplit(chr17_df$variant_info, ";")
+# 从列表中提取REF，OBS和ANCHOR的值
+chr17_df$REF <- sapply(variant_info_split, function(x) gsub("^REF=(.*)$", "\\1", x))
+# 如果ANCHOR至少有2个 --> 搜索方式不变： chr17:porition:REF:OBS
+# 如果ANCHOR为单个变异位点 --> 搜索方式改为： chr17:position:ANCHOR:OBS
+# anchor_num <-
+# 从列表中提取REF，OBS和ANCHOR的值
+library(tidyverse)
+separate(data = chr17_df, col = variant_info, into = c("REF", "OBS","ANCHOR"), sep = ";")
+separate(data = chr17_df, col = variant_info, into = c("REF_old", "OBS_old","ANCHOR_old"), sep = ";")
+separate(data = chr17_df, col = variant_info, into = c("REF_old", "OBS_old","ANCHOR_old"), sep = ";")
+seperate(data = chr17_df, col = REF_old, into = c("REF_name", "REF"), sep = "=")
+library(tidyverse)
+separate(data = chr17_df, col = variant_info, into = c("REF_old", "OBS_old","ANCHOR_old"), sep = ";")
+seperate(data = chr17_df, col = REF_old, into = c("REF_name", "REF"), sep = "=")
+library(tidyverse)
+seperate(data = chr17_df, col = REF_old, into = c("REF_name", "REF"), sep = "=")
+seperate(data = chr17_df, col = REF_old, into = c("REF_name", "REF"), sep = "=")
+seperate(data = chr17_df, col = REF_old, into = c("REF_name", "33"), sep = "=")
+# 使用strsplit()函数将variant_info列的值分割成一个列表
+split_info <- strsplit(chr17_df$variant_info, ";")
+# 从列表中提取REF，OBS和ANCHOR的值
+REF <- sapply(split_info, function(x) gsub("^REF=(.*)$", "\\1", x))
+OBS <- sapply(split_info, function(x) gsub("^OBS=(.*)$", "\\1", x))
+ANCHOR <- sapply(split_info, function(x) gsub("^ANCHOR=(.*)$", "\\1", x))
+# 创建一个新的数据框，包含REF，OBS和ANCHOR列
+new_df <- data.frame(REF = REF, OBS = OBS, ANCHOR = ANCHOR)
+# 将新的数据框添加到原始数据框中
+chr17_df <- cbind(chr17_df, new_df)
+# 初始化用于存储拆分值的向量
+REF <- character(length = nrow(chr17_df))
+OBS <- character(length = nrow(chr17_df))
+ANCHOR <- character(length = nrow(chr17_df))
+# 从列表中提取REF，OBS和ANCHOR的值
+for (i in 1:length(split_info)) {
+for (j in 1:length(split_info[[i]])) {
+if (grepl("^REF=", split_info[[i]][j])) {
+REF[i] <- gsub("^REF=(.*)$", "\\1", split_info[[i]][j])
+} else if (grepl("^OBS=", split_info[[i]][j])) {
+OBS[i] <- gsub("^OBS=(.*)$", "\\1", split_info[[i]][j])
+} else if (grepl("^ANCHOR=", split_info[[i]][j])) {
+ANCHOR[i] <- gsub("^ANCHOR=(.*)$", "\\1", split_info[[i]][j])
+}
+}
+}
+# 创建一个新的数据框，包含REF，OBS和ANCHOR列
+new_df <- data.frame(REF = REF, OBS = OBS, ANCHOR = ANCHOR)
+# 将新的数据框添加到原始数据框中
+chr17_df <- cbind(chr17_df, new_df)
+print(chr17_df)
+# chr17_df$variant_info_search <- gsub("^REF=(.*?);.*?OBS=(.*?);.*$", "\\1:\\2", chr17_df$variant_info)
+chr17_df$variant_info <- ifelse(nchar(chr17_df$OBS) == 1,
+paste0(chr17_df$ANCHOR, ":", chr17_df$OBS),
+paste0(chr17_df$REF, ":", chr17_df$OBS))
+chr17_df$search_column <- apply(chr17_df, 1, function(row){
+paste(row['chromosome'],row['start_position'],row['variant_info_search'], sep = ':')
+})
+chr17_df$search_column <- apply(chr17_df, 1, function(row){
+paste(row['chromosome'],row['start_position'],row['variant_info'], sep = ':')
+})
+source("Rcode/db_connect_common.R")
