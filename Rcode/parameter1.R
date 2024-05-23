@@ -24,15 +24,15 @@ variants_char <- gsub("'",'"',variants_char)
 # 2. connect SIFT , mutation test, the feedback of all them are deleterious ===> +0.5  
 
 ## connect cosmic
-db_type <- "varsome_liftover"  # 到时候要修改为动态的
+db_type <- "SIFT"  # 到时候要修改为动态的
 sift_url <- ""
 mutation_url <- ""
 oncokb_url <- ""
 civic_url <- ""
 varsome_url <- ""
 varsome_liftover_url <- ""
-sift_search_id <- "rs56116432" ## SIFT request params
-mutation_variant_num <- "17:37879657C%3EG" ## mutation test request params
+sift_search_id <- "rs2058824189" ## SIFT request params
+mutation_variant_num <- "17:37868204G%3EC" ## mutation test request params
 # mutation_variant_num <- "ENST00000269571"
 oncokb_queries_list <- list(
   referenceGenome = "",  

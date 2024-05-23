@@ -2,7 +2,7 @@
 # source("Rcode/db_connect_common.R")
 
 #parse .bed file
-bed_lines <- readLines('./data/hotspot_region_Oncomine_Focus_DNA_Hotspots_v1.4.bed', encoding = "UTF-8")[-1]
+bed_lines <- readLines('./data/hotspot_region_Oncomine_Focus_DNA_Hotspots_v1.4_hg38.bed', encoding = "UTF-8")[-1]
 bed_data <- read.table(text = bed_lines, header = FALSE, sep = "\t")
 # change list to dataframe
 bed_df <- data.frame(

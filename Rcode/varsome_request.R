@@ -1,27 +1,22 @@
+# this is the process of request the VarSome API, from request hg19, listover hg19 -> hg38, request hg38
 
-# cosmic doesn`t` provide API for connecting database, so dirrectly download database to use  
-# install.packages("promises")  
-# library(promises)  
-
-# connect db
 getwd()
 source("Rcode/db_connect_common.R")
 source("Rcode/read_bed.R")
 
 variant_list_liftover <- varraint_array # for liftover
-
 # set post request body
-variants_char <- character()
-request_body <- function (varraint_array) {
+request_body <- function (array) {
   # change list to json charactor for post request use
-  for (i in 1:length(varraint_array)) {
-    character_ <- paste("'",varraint_array[[i]],"'")
+  for (i in 1:length(array)) {
+    character_ <- paste("'",array[[i]],"'")
     variants_char <- append(variants_char, character_)
   }
   variants_char <- paste(variants_char, collapse = ',')
   variants_char <- paste("{'variants':","[",variants_char,"]}")
   variants_char <- gsub(" ","",variants_char)
   variants_char <- gsub("'",'"',variants_char)
+  return (variants_char)
 }
 
 db_type <- "varsome_liftover"  # 到时候要修改为动态的
@@ -40,7 +35,7 @@ varsome_19_obj <- list(
   url = varsome_url,
   req_type = "POST",
   token = "Token W0beUnL?kAjoieM4ueklHW%p5AzMVaG@ju@8dD@y",
-  body = variants_char
+  body = ''
 )
 
 varsome_38_obj <- list(
@@ -49,7 +44,7 @@ varsome_38_obj <- list(
   url = varsome_url,
   req_type = "POST",
   token = "Token W0beUnL?kAjoieM4ueklHW%p5AzMVaG@ju@8dD@y",
-  body = variants_char
+  body = ''
 )
 
 varsome_liftover_obj <- list(
@@ -75,7 +70,8 @@ calculate_score <- function(search_result,db_type) {
     # db_check_fun(db_type)
   }else {
     # hg38 chromosome format one to one corresponding to hg19
-    request_body(search_result)
+    # 当前的search result已经是在liftover之后的内容了，现在调用hg38的内容
+    # request_body(search_result)
     db_check_fun(db_type)
   }
   # search_result <- search_result
@@ -87,13 +83,12 @@ search_result <- ""
 
 db_check_fun <- function(db_type) {
   if(db_type == 'varsome_19') {
-    request_body(varraint_array)
-    varsome_19_obj$body <- variants_char
+    varsome_19_obj$body <- request_body(varraint_array)
     param <- varsome_19_obj
-    print(varsome_19_obj$body)
   }else if(db_type == 'varsome_liftover') {
     param <- varsome_liftover_obj
   }else if(db_type == 'varsome_38') {
+    varsome_38_obj$body <- request_body(search_result)
     param <- varsome_38_obj
   }
   

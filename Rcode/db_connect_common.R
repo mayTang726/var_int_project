@@ -1,9 +1,9 @@
-install.packages(c("DBI", "RMySQL"))
+# install.packages(c("DBI", "RMySQL"))
 install.packages("sqldf")
 install.packages("httr")
 library(jsonlite)
-library(DBI)
-library(RMySQL)
+# library(DBI)
+# library(RMySQL)
 
 connect_function <- function(param) {
   if (!param$API) {
@@ -45,6 +45,7 @@ connect_function <- function(param) {
         }
         return(chr_list_liftover)
       }else{
+        print('进来')
         response <- GET(param$url, content_type("application/json"), add_headers(Authorization=headers)) # nolint
         status_code <- status_code(response)
         print(response)
@@ -81,7 +82,6 @@ connect_function <- function(param) {
           }else if (param$param_type == "SIFT") {
             # SIFT
             # 用VarSome 调用
-            library(jsonlite)
             library(xml2)
             stop_for_status(response)
           }else if (param$param_type == "oncokb") {
