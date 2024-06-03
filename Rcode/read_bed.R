@@ -2,7 +2,7 @@
 # source("Rcode/db_connect_common.R")
 
 #parse .bed file
-bed_lines <- readLines('./data/hotspot_region_Oncomine_Focus_DNA_Hotspots_v1.4_hg38.bed', encoding = "UTF-8")[-1]
+bed_lines <- readLines('./data/hotspot_region_Oncomine_Focus_DNA_Hotspots_v1.4_hg19.bed', encoding = "UTF-8")[-1]
 bed_data <- read.table(text = bed_lines, header = FALSE, sep = "\t")
 # change list to dataframe
 bed_df <- data.frame(
@@ -63,5 +63,8 @@ chr17_df$search_column <- apply(chr17_df, 1, function(row){
   paste(row['chromosome'],row['start_position'],row['variant_info'], sep = ':')
 })
 
+# chromosome variant position - based on hg19
 varraint_array <- as.list(chr17_df$search_column)
-# print(chr17_df)
+library(jsonlite)
+json_data <- toJSON(varraint_array,pretty = TRUE)
+write(json_data,file="data/chr17_position_varriant_array_hg19.txt")

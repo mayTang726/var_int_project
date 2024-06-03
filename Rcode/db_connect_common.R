@@ -29,20 +29,24 @@ connect_function <- function(param) {
         headers <- ""
       }
       # varsome get request just for liftover
-      if (param$param_type == "varsome_liftover") {
+      if (param$param_type == "varsome") {
         # overlift request, the response will be a chromosome variant id in hg38
         chr_list_liftover <- list()
-        url <- param$url
         for (i in param$body) {
-          url = paste(url, param$body[[i]])
-          print(paste('url：', url) )
-          response <- GET(param$url, content_type("application/json"), add_headers(Authorization=headers))
+          url = paste(param$url, i)
+          url <- gsub(" ","",url)
+          response <- GET(url, content_type("application/json"), add_headers(Authorization=headers))
           status_code <- status_code(response)
           if(status_code == '200'){
-            filt_data <- content(response, as = "text")
-            chr_list_liftover[[length(chr_list_liftover) + 1]] <- filt_data
+            # print('request success!')
+            filt_data <- content(response, as = "parsed")
+            # chr_list_liftover[[length(chr_list_liftover) + 1]] <- filt_data
+            chr_list_liftover <- append(chr_list_liftover, filt_data)
+          }else{
+            print('resuest fail!')
           }
         }
+        print(chr_list_liftover)
         return(chr_list_liftover)
       }else{
         print('进来')
@@ -118,19 +122,11 @@ connect_function <- function(param) {
       response <- POST(param$url, body = param$body, add_headers(headers),encode = "json") 
       status_code <- status_code(response)
       if (status_code == 200) {
-        # response_content <- content(response, "json")
-        # response_data <- fromJSON(response)
-        # print(paste('http post request success:', response))
-        # cat(response)
         response_data <- as.character(response)
-        folder_oath <- "data/"
-        file_name <- c(paste(param$param_type, ".json"))
-        file_path <- file.path(folder_oath, file_name)
-        writeLines(response_data, file_path)
-        # print(paste('response:',response_content))
         search_result <- list(
           param_type = param$param_type,
-          write_status = 'succuss'
+          write_status = 'succuss',
+          response_data = response_data
         )
         return(search_result)
         # print(paste('http post request success:', content))
