@@ -83,11 +83,6 @@ connect_function <- function(param) {
               prediction_list
             )
             return(search_result)
-          }else if (param$param_type == "SIFT") {
-            # SIFT
-            # 用VarSome 调用
-            library(xml2)
-            stop_for_status(response)
           }else if (param$param_type == "oncokb") {
             library(jsonlite)
             filt_data <- fromJSON(filt_data)
@@ -111,28 +106,55 @@ connect_function <- function(param) {
       }
     }else{ # POST request
       # now only varsome use post request
+      headers <- ""
       if (length(param[["token"]]) != 0) {
         headers <- c(
           Authorization=param$token,
           'Content-Type'="application/json"
         )
-      }else {
-        headers <- ""
       }
-      response <- POST(param$url, body = param$body, add_headers(headers),encode = "json") 
-      status_code <- status_code(response)
-      if (status_code == 200) {
-        response_data <- as.character(response)
-        search_result <- list(
-          param_type = param$param_type,
-          write_status = 'succuss',
-          response_data = response_data
-        )
-        return(search_result)
-        # print(paste('http post request success:', content))
-      }else{
-        print(response)
-        print(paste("HTTP post request error:", status_code))
+      if (param$param_type == "SIFT") {
+        # request limit numer : 300,  so we need to split the number of the request body
+        split_list <- split(param$body, ceiling(seq_along(param$body) / 300))
+        response_list <- list()
+        for (i in 1:length(split_list)) {
+          ##  change list to json format as post request body
+          sift_request_body_json <- toJSON(list(hgvs_notations = split_list[[i]]), pretty = TRUE)
+          response <- POST(param$url, body = sift_request_body_json, add_headers(headers),encode = "json")
+          status_code <- status_code(response)
+          if (status_code == 200) {
+            response_content <- content(response, as = "text", encoding = "UTF-8")
+            response_list[[i]] <- fromJSON(response_content)
+          }else {
+            # print(response)
+            print(paste("HTTP post request error:", status_code))
+          }
+        }
+        if(length(response_list) != 0){
+          response_data <- unlist(response_list, recursive = FALSE)
+          search_result <- list(
+            param_type = param$param_type,
+            write_status = 'succuss',
+            response_data = response_data
+          )
+        }
+      }else if (param$param_type == "varsome"){
+        response <- POST(param$url, body = param$body, add_headers(headers),encode = "json") 
+        status_code <- status_code(response)
+        if (status_code == 200) {
+          response_data <- ""
+          response_data <- as.character(response)
+          search_result <- list(
+            param_type = param$param_type,
+            write_status = 'succuss',
+            response_data = response_data
+          )
+          return(search_result)
+          # print(paste('http post request success:', content))
+        }else{
+          # print(response)
+          print(paste("HTTP post request error:", status_code))
+        }
       }
     }
   }

@@ -28,9 +28,6 @@ colnames(bed_df) <- c("chromosome", "start_position", "end_position", "cosmic_id
 
 #get chr17 df
 chr17_df <- subset(bed_df, chromosome == 'chr17')
-### 当前处理方式只用于当前这个数据库中 
-# 如果ANCHOR至少有2个 --> 搜索方式不变： chr17:porition:REF:OBS
-# 如果ANCHOR为单个变异位点 --> 搜索方式改为： chr17:position:ANCHOR:OBS
 
 # 使用strsplit()函数将variant_info列的值分割成一个列表
 split_info <- strsplit(chr17_df$variant_info, ";")
