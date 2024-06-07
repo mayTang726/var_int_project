@@ -50,58 +50,63 @@ connect_function <- function(param) {
         return(chr_list_liftover)
       }else{
         print('进来')
-        response <- GET(param$url, content_type("application/json"), add_headers(Authorization=headers)) # nolint
-        status_code <- status_code(response)
-        print(response)
-        if (status_code == 200) {
-          filt_data <- content(response, as = "text")
-          if (param$param_type == "mutation") {
-            print('filt_data')
-            print(filt_data)
-            lines <- readLines(textConnection(filt_data))
-            keys <- strsplit(lines[1], "\t")[[1]]
-            data_list <- list()
-            for (line in lines[-1]) {
-              values <- strsplit(line, "\t")[[1]]
-              obj <- list()
-              for (i in seq_along(keys)) {
-                obj[keys[i]] <- values[i] # nolint
+        if (param$param_type == "mutation") {
+          response_result <- list()
+          for (i in param$body) {
+            url <- ""
+            url <- paste(param$url, i)
+            url <- gsub(" ", "", url)
+            print(url)
+            response <- GET(url, content_type("application/json")) # nolint
+            status_code <- status_code(response)
+            print(response)
+            if (status_code == 200) {
+              filt_data <- content(response, as = "text")
+              lines <- readLines(textConnection(filt_data))
+              keys <- strsplit(lines[1], "\t")[[1]]
+              data_list <- list()
+              for (line in lines[-1]) {
+                values <- strsplit(line, "\t")[[1]]
+                obj <- list()
+                for (i in seq_along(keys)) {
+                  obj[keys[i]] <- values[i] # nolint
+                }
+                data_list <- c(data_list, list(obj))
               }
-              data_list <- c(data_list, list(obj))
+              response_result <- append(response_result, data_list)
+              print(response_result)
+            }else {
+              stop("HTTP get request error: ", status_code)
             }
-            print(data_list)
-            prediction_list <- list()
-            obj <- list()
-            for (i in seq_along(data_list)) {
-              obj["transcript_stable"] <- data_list[[i]]$transcript_stable
-              obj["prediction"] <- data_list[[i]]$prediction
-              prediction_list <- c(prediction_list, list(obj))
-            }
-            # print(prediction_list)
-            search_result <- list(
-              param_type = param$param_type,
-              prediction_list
-            )
-            return(search_result)
-          }else if (param$param_type == "oncokb") {
-            library(jsonlite)
-            filt_data <- fromJSON(filt_data)
-            if (filt_data$oncogenic == "Oncogenic" | filt_data$oncogenic == "Likely Oncogenic") {
-              # it means (likely) pathagenic , score +0.5
-              search_result <- list(
-                param_type = param$param_type,
-                filt_data
-              )
-              return(search_result)
-            }
-          }else if (param$param_type == "civic") {
-            # 需要使用post请求
-            # print(12345)
-            # print(response)
           }
-          
-        }else {
-          stop("HTTP get request error: ", status_code)
+          search_result <- list(
+            param_type = param$param_type,
+            response_data = response_result
+          )
+          return(search_result)
+        }else{
+          if (status_code == 200) {
+            filt_data <- content(response, as = "text")
+            if (param$param_type == "oncokb") {
+              library(jsonlite)
+              filt_data <- fromJSON(filt_data)
+              if (filt_data$oncogenic == "Oncogenic" | filt_data$oncogenic == "Likely Oncogenic") {
+                # it means (likely) pathagenic , score +0.5
+                search_result <- list(
+                  param_type = param$param_type,
+                  filt_data
+                )
+                return(search_result)
+              }
+            }else if (param$param_type == "civic") {
+              # 需要使用post请求
+              # print(12345)
+              # print(response)
+            }
+            
+          }else {
+            stop("HTTP get request error: ", status_code)
+          }
         }
       }
     }else{ # POST request
@@ -130,12 +135,12 @@ connect_function <- function(param) {
             print(paste("HTTP post request error:", status_code))
           }
         }
+        
         if(length(response_list) != 0){
-          response_data <- unlist(response_list, recursive = FALSE)
           search_result <- list(
             param_type = param$param_type,
             write_status = 'succuss',
-            response_data = response_data
+            response_data = response_list
           )
         }
       }else if (param$param_type == "varsome"){

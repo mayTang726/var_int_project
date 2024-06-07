@@ -23,9 +23,9 @@ this is a internship project, using R language and Rstudio as development tool
   - unset the data from varsome based on hg19 and hg38
   - save them in the dataframe
 
-6. scoring_system.R
+6. scoring_system.R - have not complete
   - connect different database to get the score
   - calculate the score to a total score
   - give a final result for each variant
 
-到时候把token也要提出来放到配置文件里
+### separate token to config file

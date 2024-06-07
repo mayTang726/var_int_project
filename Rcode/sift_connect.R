@@ -3,7 +3,7 @@
 # grch38 request link: https://rest.ensembl.org/vep/human/hgvs
 
 getwd()
-source("utils/request_body_resolve.R")
+# source("utils/request_body_resolve.R")
 source("Rcode/resolve_varsome_response.R")
 source("Rcode/db_connect_common.R")
 
@@ -28,10 +28,12 @@ sift_obj <- list(
 )
 # calculate score
 response_result <- list()
-result_resolve <- function(search_result) {
+result_resolve <- function(search_result,db_type) {
   # print('进入回调中')
   # print(search_result$response_data)
   response_result <- search_result$response_data
+  response_result <- as.data.frame(response_result)
+  print(response_result)
 }
 
 
