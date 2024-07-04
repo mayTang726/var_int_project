@@ -56,10 +56,8 @@ connect_function <- function(param) {
             url <- ""
             url <- paste(param$url, i)
             url <- gsub(" ", "", url)
-            print(url)
             response <- GET(url, content_type("application/json")) # nolint
             status_code <- status_code(response)
-            print(response)
             if (status_code == 200) {
               filt_data <- content(response, as = "text")
               lines <- readLines(textConnection(filt_data))
@@ -71,10 +69,10 @@ connect_function <- function(param) {
                 for (i in seq_along(keys)) {
                   obj[keys[i]] <- values[i] # nolint
                 }
-                data_list <- c(data_list, list(obj))
+                
+                # data_list <- c(data_list, list(obj))
+                response_result <- c(response_result, list(obj))
               }
-              response_result <- append(response_result, data_list)
-              print(response_result)
             }else {
               stop("HTTP get request error: ", status_code)
             }
@@ -85,6 +83,8 @@ connect_function <- function(param) {
           )
           return(search_result)
         }else{
+          response <- GET(url, content_type("application/json"), add_headers(Authorization=headers))
+          status_code <- status_code(response)
           if (status_code == 200) {
             filt_data <- content(response, as = "text")
             if (param$param_type == "oncokb") {
@@ -121,20 +121,25 @@ connect_function <- function(param) {
       if (param$param_type == "SIFT") {
         # request limit numer : 300,  so we need to split the number of the request body
         split_list <- split(param$body, ceiling(seq_along(param$body) / 300))
+        # 这里需要将大于300和小于300的分开处理
+        
+        print(split_list)
         response_list <- list()
         for (i in 1:length(split_list)) {
           ##  change list to json format as post request body
           sift_request_body_json <- toJSON(list(hgvs_notations = split_list[[i]]), pretty = TRUE)
           response <- POST(param$url, body = sift_request_body_json, add_headers(headers),encode = "json")
           status_code <- status_code(response)
+          # print(response)
           if (status_code == 200) {
             response_content <- content(response, as = "text", encoding = "UTF-8")
-            response_list[[i]] <- fromJSON(response_content)
+            response_list[[i]] <- response_content
+            print("request success!")
           }else {
-            # print(response)
             print(paste("HTTP post request error:", status_code))
           }
         }
+        
         
         if(length(response_list) != 0){
           search_result <- list(
@@ -143,6 +148,7 @@ connect_function <- function(param) {
             response_data = response_list
           )
         }
+        return(search_result)
       }else if (param$param_type == "varsome"){
         response <- POST(param$url, body = param$body, add_headers(headers),encode = "json") 
         status_code <- status_code(response)

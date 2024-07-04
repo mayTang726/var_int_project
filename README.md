@@ -2,6 +2,7 @@
 this is a internship project, using R language and Rstudio as development tool
 
 # project structure
+
 1. read_bed.R
   - read .bed file
   - create the query parameter for request link : " chr:position:ref_allele:alt_allele"

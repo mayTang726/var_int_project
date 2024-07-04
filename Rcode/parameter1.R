@@ -24,7 +24,7 @@ variants_char <- gsub("'",'"',variants_char)
 # 2. connect SIFT , mutation test, the feedback of all them are deleterious ===> +0.5  
 
 ## connect cosmic
-db_type <- "SIFT"  # 到时候要修改为动态的
+db_type <- "oncokb"  # 到时候要修改为动态的
 sift_url <- ""
 mutation_url <- ""
 oncokb_url <- ""

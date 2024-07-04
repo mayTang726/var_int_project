@@ -23,19 +23,21 @@ score <- c(bed_data[5])
 strand <- c(bed_data[6])
 variant_info <- c(bed_data[7])
 
+# whole df
 bed_df = data.frame(chromosome,start_position,end_position,cosmic_id,score,strand,variant_info)
 colnames(bed_df) <- c("chromosome", "start_position", "end_position", "cosmic_id", "score", "strand", "variant_info")
 
 #get chr17 df
-chr17_df <- subset(bed_df, chromosome == 'chr17')
+# chr17_df <- subset(bed_df, chromosome == 'chr17')
+
 
 # 使用strsplit()函数将variant_info列的值分割成一个列表
-split_info <- strsplit(chr17_df$variant_info, ";")
+split_info <- strsplit(bed_df$variant_info, ";")
 
 # 初始化用于存储拆分值的向量
-REF <- character(length = nrow(chr17_df))
-OBS <- character(length = nrow(chr17_df))
-ANCHOR <- character(length = nrow(chr17_df))
+REF <- character(length = nrow(bed_df))
+OBS <- character(length = nrow(bed_df))
+ANCHOR <- character(length = nrow(bed_df))
 
 # 从列表中提取REF，OBS和ANCHOR的值
 for (i in 1:length(split_info)) {
@@ -52,16 +54,25 @@ for (i in 1:length(split_info)) {
 
 # 创建REF，OBS和ANCHOR列，用于合成搜索内容
 new_df <- data.frame(REF = REF, OBS = OBS, ANCHOR = ANCHOR)
-# 将新的数据框添加到原始数据框中
-chr17_df <- cbind(chr17_df, new_df)
-chr17_df$variant_info <- paste0(chr17_df$ANCHOR, ":", chr17_df$OBS)
 
-chr17_df$search_column <- apply(chr17_df, 1, function(row){
+
+# 将新的数据框添加到原始数据框中
+bed_df <- cbind(bed_df, new_df)
+bed_df$variant_info <- paste0(bed_df$ANCHOR, ":", bed_df$OBS)
+
+bed_df$search_column <- apply(bed_df, 1, function(row){
   paste(row['chromosome'],row['start_position'],row['variant_info'], sep = ':')
 })
 
 # chromosome variant position - based on hg19
-varraint_array <- as.list(chr17_df$search_column)
+varraint_array <- as.list(bed_df$search_column)
+
 library(jsonlite)
 json_data <- toJSON(varraint_array,pretty = TRUE)
-write(json_data,file="data/chr17_position_varriant_array_hg19.txt")
+write(json_data,file="data/chr_position_varriant_array_hg19.txt")
+
+#get chr17 df
+chr17_df <- subset(bed_df, chromosome == 'chr17')
+varraint_array_chr17 <- as.list(chr17_df$search_column)
+json_data_chr17 <- toJSON(varraint_array_chr17,pretty = TRUE)
+write(json_data_chr17,file="data/chr17_position_varriant_array_hg19.txt")

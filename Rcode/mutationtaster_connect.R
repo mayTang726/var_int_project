@@ -33,20 +33,37 @@ mutation_obj <- list(
   body = mutation_request_body_list
 )
 # calculate score
-response_result <- list()
+response_result_mutation <- data.frame()
 result_resolve <- function(search_result,db_type) {
   # print('进入回调中')
   # print(search_result$response_data)
-  response_result <- search_result$response_data
-  print(response_result)
-  # parse the response 
-    # prediction_list <- list()
-    # obj <- list()
-    # for (i in seq_along(search_result$response_data)) {
-    #   obj["transcript_stable"] <- data_list[[i]]$transcript_stable
-    #   obj["prediction"] <- data_list[[i]]$prediction
-    #   prediction_list <- c(prediction_list, list(obj))
-    # }
+  # output: polyphen_prediction(有害), Polymorphism(可能是无害的)
+  # resolve response format to df
+  response_result_mutation <<- as.data.frame(search_result$response_data)
+  response_result_mutation_new <- response_result_mutation %>%
+    pivot_longer(
+      cols = everything(),
+      names_to = c(".value", "set"),
+      names_sep = "\\."
+    ) %>%
+    select(-set)
+  
+  # add chromosome variant column
+  response_result_mutation_new <- response_result_mutation_new %>%
+    mutate(chr_variant = paste0('chr',chr,':',pos,':',ref,':', alt))
+  
+  # left useful column for matching gh19_df
+  response_result_mutation_new <- response_result_mutation_new %>%
+    select(chr_variant, prediction,transcript_stable)
+  # delete rows which are full NA
+  response_result_mutation_new <- response_result_mutation_new %>%
+    filter(rowSums(is.na(.)) < ncol(.))
+  # match with hg19_df 
+  hg19_df <- left_join(hg19_df, response_result_mutation_new,
+                         by = c("original_variant" = "chr_variant", "ensembl_name" = "transcript_stable"),
+                         relationship = "many-to-many"
+  )
+  hg19_df <- hg19_df %>% rename(mutation_taster_prediction = prediction)
 }
 
 
