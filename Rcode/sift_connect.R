@@ -53,13 +53,13 @@ result_resolve <- function(search_result, db_type) {
   }
   # check if protein_start equal protein_end，create hgvsp column
   # mutate() from dplyr package, function: add new column / modify existed column
-
+  
   response_result_new <- response_result_new %>%
     mutate(hgvsp = ifelse(protein_start == protein_end,
-      create_hgvsp(amino_acids, protein_start),
-      NA
+                          create_hgvsp(amino_acids, protein_start),
+                          NA
     ))
-
+  
   #### match varsome resposne based on transcriptid, amino acids variatoin
   # abstract sift information and transcript_id, hgvsp(one letter)
   response_result_new_select <- response_result_new %>%
@@ -78,8 +78,8 @@ result_resolve <- function(search_result, db_type) {
   #   )
   
   hg19_df <- left_join(hg19_df, response_result_new_select,
-    by = c("ensembl_name" = "transcript_id", "ensembl_hgvs_p1" = "hgvsp"),
-    relationship = "many-to-many"
+                       by = c("ensembl_name" = "transcript_id", "ensembl_hgvs_p1" = "hgvsp"),
+                       relationship = "many-to-many"
   )
   # hg19_df <- merged_df %>%
   #   mutate(
