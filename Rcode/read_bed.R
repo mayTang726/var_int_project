@@ -69,10 +69,13 @@ varraint_array <- as.list(bed_df$search_column)
 
 library(jsonlite)
 json_data <- toJSON(varraint_array,pretty = TRUE)
+# store all chromosome variant position to the .txt file for varsome using
 write(json_data,file="data/chr_position_varriant_array_hg19.txt")
 
 #get chr17 df
 chr17_df <- subset(bed_df, chromosome == 'chr17')
 varraint_array_chr17 <- as.list(chr17_df$search_column)
 json_data_chr17 <- toJSON(varraint_array_chr17,pretty = TRUE)
+
+# store chromosome 17 variant position to the .txt file for varsome using
 write(json_data_chr17,file="data/chr17_position_varriant_array_hg19.txt")

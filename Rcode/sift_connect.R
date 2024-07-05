@@ -5,8 +5,7 @@
 #  sift prediction based on amino acids variation
 
 getwd()
-# source("utils/request_body_resolve.R")
-source("Rcode/resolve_varsome_response.R")
+# source("Rcode/resolve_varsome_response.R")
 source("Rcode/db_connect_common.R")
 
 ## connect cosmic

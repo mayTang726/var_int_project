@@ -1,5 +1,5 @@
 getwd()
-source("Rcode/resolve_varsome_response.R")
+# source("Rcode/resolve_varsome_response.R")
 source("Rcode/db_connect_common.R")
 
 ## connect cosmic

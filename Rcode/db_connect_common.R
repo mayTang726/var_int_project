@@ -38,7 +38,6 @@ connect_function <- function(param) {
           response <- GET(url, content_type("application/json"), add_headers(Authorization=headers))
           status_code <- status_code(response)
           if(status_code == '200'){
-            # print('request success!')
             filt_data <- content(response, as = "parsed")
             # chr_list_liftover[[length(chr_list_liftover) + 1]] <- filt_data
             chr_list_liftover <- append(chr_list_liftover, filt_data)
@@ -60,6 +59,8 @@ connect_function <- function(param) {
             status_code <- status_code(response)
             if (status_code == 200) {
               filt_data <- content(response, as = "text")
+              print('filt_data++++++')
+              print(filt_data)
               lines <- readLines(textConnection(filt_data))
               keys <- strsplit(lines[1], "\t")[[1]]
               data_list <- list()
@@ -122,7 +123,6 @@ connect_function <- function(param) {
         # request limit numer : 300,  so we need to split the number of the request body
         split_list <- split(param$body, ceiling(seq_along(param$body) / 300))
         # 这里需要将大于300和小于300的分开处理
-        
         print(split_list)
         response_list <- list()
         for (i in 1:length(split_list)) {
@@ -139,8 +139,6 @@ connect_function <- function(param) {
             print(paste("HTTP post request error:", status_code))
           }
         }
-        
-        
         if(length(response_list) != 0){
           search_result <- list(
             param_type = param$param_type,
@@ -150,21 +148,49 @@ connect_function <- function(param) {
         }
         return(search_result)
       }else if (param$param_type == "varsome"){
-        response <- POST(param$url, body = param$body, add_headers(headers),encode = "json") 
-        status_code <- status_code(response)
-        if (status_code == 200) {
-          response_data <- ""
-          response_data <- as.character(response)
+        body <- param$body
+        if(length(body) > 1){
+          print("进入判断条件")
+          response_list <- list()
+          retry_time <- 0
+          for (i in 1:length(body)) {
+            print("进入循环条件")
+            response <- POST(param$url, body = body[[i]], add_headers(headers),encode = "json") 
+            status_code <- status_code(response)
+            if (status_code == 200) {
+              print('请求成功')
+              response_data <- ""
+              response_data <- as.character(response)
+              response_list <- append(response_list, response_data)
+              Sys.sleep(30) # Wait for 1 second before the next request
+              print('sleep finished')
+            }else{
+              # print(response)
+              print(paste("HTTP post request error:", status_code))
+            }
+          }
           search_result <- list(
             param_type = param$param_type,
             write_status = 'succuss',
-            response_data = response_data
+            response_data = response_list
           )
           return(search_result)
-          # print(paste('http post request success:', content))
         }else{
-          # print(response)
-          print(paste("HTTP post request error:", status_code))
+          response <- POST(param$url, body = param$body, add_headers(headers),encode = "json") 
+          status_code <- status_code(response)
+          if (status_code == 200) {
+            response_data <- ""
+            response_data <- as.character(response)
+            search_result <- list(
+              param_type = param$param_type,
+              write_status = 'succuss',
+              response_data = response_data
+            )
+            return(search_result)
+          }else{
+            # print(response)
+            print(paste("HTTP post request error:", status_code))
+          }
         }
       }
     }

@@ -21,6 +21,8 @@ print(colnames(hg19_df))
 # resolve hg19 response
 # 3. delete unuseful columns
 ## if you want use the information below, you can add comment for the line which you wanna use
+hg19_df <- hg19_df[!is.na(hg19_df$chromosome),]
+
 hg19_df['regions'] <- NULL 
 hg19_df['gerp'] <- NULL 
 hg19_df['phastcons100way'] <- NULL 
@@ -34,6 +36,8 @@ hg19_df['icgc_somatic'] <- NULL
 hg19_df['nih_gdc'] <- NULL
 hg19_df['wustl_docm'] <- NULL
 hg19_df['variant_pubmed_automap'] <- NULL
+hg19_df['cadd'] <- NULL
+hg19_df['dann_snvs'] <- NULL
 
 # 4. add "amp_annotation_verdict_tier" as a new column
 hg19_df['amp_annotation_verdict_tier'] <- hg19_df$amp_annotation$verdict$tier
@@ -44,6 +48,51 @@ hg19_df['acmg_annotation_verdict'] <- hg19_df$acmg_annotation$verdict$ACMG_rules
 hg19_df['acmg_annotation'] <- NULL
 hg19_df['dbnsfp'] <- NULL
 
+test_df <- hg19_df[1:10,]
+# test_df <- test_df %>%
+#   unnest(refseq_transcripts) %>%
+#   unnest(items) %>%
+#   rename_with(~ paste0("refseq_", .), .cols = c("name", "strand", "coding_impact", "function", "hgvs", "hgvs_p1", "hgvs_p3", "location", "coding_location", "canonical", "gene_symbol", "splice_distance", "ensembl_support_level", "ensembl_appris", "mane_select", "mane_plus", "uniprot_id"))  # 为所有列添加前缀
+# test_df['version'] <- NULL
+# test_df <- as_data_frame(test_df)
+process_nested_array <- function(df, column_name) {
+  expanded_list <- map(df[[column_name]], function(x) {
+    if (is.null(x)) {
+      return(data.frame(matrix(ncol = 0, nrow = 1)))
+    } else {
+      items_df <- bind_rows(map(x$items, as.data.frame))
+      items_df$version <- x$version  # 添加版本信息
+      return(items_df)
+    }
+  })
+  
+  expanded_df <- bind_rows(expanded_list, .id = "row_id")
+  
+  df <- df %>%
+    mutate(row_id = as.character(row_number()))
+  
+  combined_df <- df %>%
+    select(-all_of(column_name)) %>%
+    left_join(expanded_df, by = "row_id") %>%
+    select(-row_id)
+  
+  return(combined_df)
+}
+
+# 展开所有需要处理的嵌套列
+nested_columns <- c("ensembl_transcripts", "refseq_transcripts", "gnomad_exomes_coverage")
+
+for (col in nested_columns) {
+  test_df <- process_nested_array(test_df, col)
+}
+
+
+
+
+
+
+
+
 # dff <- hg19_df
 # new_fun <- function(x, y){
 # # do stuff
@@ -51,7 +100,7 @@ hg19_df['dbnsfp'] <- NULL
 # lapply(seq_along(1:dim(dff)[1]), function(ff){
 #   
 #   dff[ff,"dann_snv"] <- unlist(dff[ff,"dann_snv"]$dan_score)
-...
+# ...
 # })
 # dplyr::select(.data = dff, !"version") %>% head()
 
@@ -103,7 +152,26 @@ hg19_df <- hg19_df %>%
 
 hg19_df$ensembl_name <- gsub("\\..*", "", hg19_df$ensembl_name)
 
-print(unique(hg19_df$original_variant))
+# 删除部分不重要的columns，保留的内容与cosmic做匹配
+# refseq_mane_plus，refseq_strand, refseq_uniprot_id, 
+# refseq_splice_distance,ensembl_location,ensembl_coding_location 
+# ensembl_splice_distance,ensembl_ensembl_support_level
+# ensembl_ensembl_appris, refseq_mane_plus, ensembl_mane_plus
+# ensembl_uniprot_id,ensembl_strand, error, 
+delete_list <- list('refseq_mane_plus','refseq_strand','refseq_location',
+                    'refseq_coding_location','refseq_uniprot_id','refseq_ensembl_support_level',
+                    'refseq_ensembl_appris',
+                    'refseq_splice_distance','ensembl_location','ensembl_coding_location',
+                    'ensembl_splice_distance','ensembl_ensembl_support_level',
+                    'ensembl_ensembl_appris', 'refseq_mane_plus', 'ensembl_mane_plus',
+                    'ensembl_uniprot_id','ensembl_strand', 'error')
+for (i in delete_list) {
+  hg19_df[i] <- NULL
+}
+
+hg19_df <- hg19_df[!duplicated(hg19_df),]
+
+
 
 
 
