@@ -11,11 +11,11 @@ library(purrr)
 
 # 1. read json file
 hg19_info <- 'data/variant_response_hg19.json'
-hg38_info <- 'data/variant_response_hg38.json'
+# hg38_info <- 'data/variant_response_hg38.json'
 
 # 2. parse json file -> dataframe
 hg19_df <- fromJSON(hg19_info)
-hg38_df <- fromJSON(hg38_info)
+# hg38_df <- fromJSON(hg38_info)
 print(colnames(hg19_df))
 
 # resolve hg19 response
@@ -48,13 +48,13 @@ hg19_df['acmg_annotation_verdict'] <- hg19_df$acmg_annotation$verdict$ACMG_rules
 hg19_df['acmg_annotation'] <- NULL
 hg19_df['dbnsfp'] <- NULL
 
-test_df <- hg19_df[1:10,]
-# test_df <- test_df %>%
-#   unnest(refseq_transcripts) %>%
-#   unnest(items) %>%
-#   rename_with(~ paste0("refseq_", .), .cols = c("name", "strand", "coding_impact", "function", "hgvs", "hgvs_p1", "hgvs_p3", "location", "coding_location", "canonical", "gene_symbol", "splice_distance", "ensembl_support_level", "ensembl_appris", "mane_select", "mane_plus", "uniprot_id"))  # 为所有列添加前缀
-# test_df['version'] <- NULL
-# test_df <- as_data_frame(test_df)
+# ensembl_transcripts 和 refseq_transcripts 内容没有匹配上，要将两个分别展开，然后再将数据框
+# 通过original_variant, hgvsc,hgvsp进行匹配，匹配到的合并行，匹配不到的直接添加行，将未匹配到的
+# 部分添加NA
+
+############### test code -> connect cosmic #######################################
+test_df <- hg19_df[1:200,]
+test_df <- test_df %>% select("original_variant", "chromosome","pos","ensembl_transcripts")
 process_nested_array <- function(df, column_name) {
   expanded_list <- map(df[[column_name]], function(x) {
     if (is.null(x)) {
@@ -65,12 +65,9 @@ process_nested_array <- function(df, column_name) {
       return(items_df)
     }
   })
-  
   expanded_df <- bind_rows(expanded_list, .id = "row_id")
-  
   df <- df %>%
     mutate(row_id = as.character(row_number()))
-  
   combined_df <- df %>%
     select(-all_of(column_name)) %>%
     left_join(expanded_df, by = "row_id") %>%
@@ -80,13 +77,42 @@ process_nested_array <- function(df, column_name) {
 }
 
 # 展开所有需要处理的嵌套列
-nested_columns <- c("ensembl_transcripts", "refseq_transcripts", "gnomad_exomes_coverage")
-
-for (col in nested_columns) {
+test_nested_columns <- c("ensembl_transcripts")
+for (col in test_nested_columns) {
   test_df <- process_nested_array(test_df, col)
 }
 
+# set same hgvsp. format with cosmic
+test_df$hgvs_p1 <- ifelse(is.na(test_df$hgvs_p1), NA, paste0("p.", test_df$hgvs_p1))
 
+# read cosmic file
+cosmic_mutation_census_df <- read.delim('/Users/stan/Desktop/internship_project/database/params 1/Cosmic_MutantCensus_Tsv_v99_GRCh37/Cosmic_MutantCensus_v99_GRCh37.tsv', sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+cosmic_sample_df <- read.delim('/Users/stan/Desktop/internship_project/database/params 1/Cosmic_Sample_Tsv_v99_GRCh37/Cosmic_Sample_v99_GRCh37.tsv', sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+colnames(cosmic_mutation_census_df)
+colnames(cosmic_sample_df)
+
+# cosmic_mutation_census_df: CHROMOSOME, GENOME_START, MUTATION_CDS, MUTATION_AA
+# test_df: chromosome,pos, hgvs,hgvs_p1
+# match cosmic_mutation_census_df and test_df
+# merge cosmic mucation file and test_df
+cosmic_mutation_census_df <- cosmic_mutation_census_df %>% select('CHROMOSOME', 'GENOME_START', 'MUTATION_CDS', 'MUTATION_AA', 'COSMIC_SAMPLE_ID')
+cosmic_mutation_census_df$CHROMOSOME <- paste0("chr", cosmic_mutation_census_df$CHROMOSOME)
+test_df <- merge(test_df, cosmic_mutation_census_df,
+                  by.x = c("chromosome", "pos", "hgvs", "hgvs_p1"),
+                  by.y = c("CHROMOSOME", "GENOME_START", "MUTATION_CDS", "MUTATION_AA"),
+                  all.x = TRUE)
+
+# merge sample file and match sample_type to each variant
+colnames(cosmic_sample_df)
+cosmic_sample_df <- cosmic_sample_df %>% select("COSMIC_SAMPLE_ID","SAMPLE_TYPE")
+test_df <- merge(test_df, cosmic_sample_df,
+                 by.x = c("COSMIC_SAMPLE_ID"),
+                 by.y = c("COSMIC_SAMPLE_ID"),
+                 all.x = TRUE)
+
+unique(test_df$SAMPLE_TYPE)
+
+############### test code -> connect cosmic #######################################
 
 
 
