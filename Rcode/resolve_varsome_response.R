@@ -8,6 +8,7 @@ library(jsonlite)
 library(tidyr)
 library(dplyr)
 library(purrr)
+# 当前是基于chr17 做的，需要将此部分改为循环
 
 # 1. read json file
 hg19_info <- 'data/variant_response_hg19.json'
@@ -38,6 +39,7 @@ hg19_df['wustl_docm'] <- NULL
 hg19_df['variant_pubmed_automap'] <- NULL
 hg19_df['cadd'] <- NULL
 hg19_df['dann_snvs'] <- NULL
+hg19_df['error'] <- NULL
 
 # 4. add "amp_annotation_verdict_tier" as a new column
 hg19_df['amp_annotation_verdict_tier'] <- hg19_df$amp_annotation$verdict$tier
@@ -48,100 +50,15 @@ hg19_df['acmg_annotation_verdict'] <- hg19_df$acmg_annotation$verdict$ACMG_rules
 hg19_df['acmg_annotation'] <- NULL
 hg19_df['dbnsfp'] <- NULL
 
-# ensembl_transcripts 和 refseq_transcripts 内容没有匹配上，要将两个分别展开，然后再将数据框
-# 通过original_variant, hgvsc,hgvsp进行匹配，匹配到的合并行，匹配不到的直接添加行，将未匹配到的
-# 部分添加NA
-
-############### test code -> connect cosmic #######################################
-test_df <- hg19_df[1:200,]
-test_df <- test_df %>% select("original_variant", "chromosome","pos","ensembl_transcripts")
-process_nested_array <- function(df, column_name) {
-  expanded_list <- map(df[[column_name]], function(x) {
-    if (is.null(x)) {
-      return(data.frame(matrix(ncol = 0, nrow = 1)))
-    } else {
-      items_df <- bind_rows(map(x$items, as.data.frame))
-      items_df$version <- x$version  # 添加版本信息
-      return(items_df)
-    }
-  })
-  expanded_df <- bind_rows(expanded_list, .id = "row_id")
-  df <- df %>%
-    mutate(row_id = as.character(row_number()))
-  combined_df <- df %>%
-    select(-all_of(column_name)) %>%
-    left_join(expanded_df, by = "row_id") %>%
-    select(-row_id)
-  
-  return(combined_df)
-}
-
-# 展开所有需要处理的嵌套列
-test_nested_columns <- c("ensembl_transcripts")
-for (col in test_nested_columns) {
-  test_df <- process_nested_array(test_df, col)
-}
-
-# set same hgvsp. format with cosmic
-test_df$hgvs_p1 <- ifelse(is.na(test_df$hgvs_p1), NA, paste0("p.", test_df$hgvs_p1))
-
-# read cosmic file
-cosmic_mutation_census_df <- read.delim('/Users/stan/Desktop/internship_project/database/params 1/Cosmic_MutantCensus_Tsv_v99_GRCh37/Cosmic_MutantCensus_v99_GRCh37.tsv', sep = "\t", header = TRUE, stringsAsFactors = FALSE)
-cosmic_sample_df <- read.delim('/Users/stan/Desktop/internship_project/database/params 1/Cosmic_Sample_Tsv_v99_GRCh37/Cosmic_Sample_v99_GRCh37.tsv', sep = "\t", header = TRUE, stringsAsFactors = FALSE)
-colnames(cosmic_mutation_census_df)
-colnames(cosmic_sample_df)
-
-# cosmic_mutation_census_df: CHROMOSOME, GENOME_START, MUTATION_CDS, MUTATION_AA
-# test_df: chromosome,pos, hgvs,hgvs_p1
-# match cosmic_mutation_census_df and test_df
-# merge cosmic mucation file and test_df
-cosmic_mutation_census_df <- cosmic_mutation_census_df %>% select('CHROMOSOME', 'GENOME_START', 'MUTATION_CDS', 'MUTATION_AA', 'COSMIC_SAMPLE_ID')
-cosmic_mutation_census_df$CHROMOSOME <- paste0("chr", cosmic_mutation_census_df$CHROMOSOME)
-test_df <- merge(test_df, cosmic_mutation_census_df,
-                  by.x = c("chromosome", "pos", "hgvs", "hgvs_p1"),
-                  by.y = c("CHROMOSOME", "GENOME_START", "MUTATION_CDS", "MUTATION_AA"),
-                  all.x = TRUE)
-
-# merge sample file and match sample_type to each variant
-colnames(cosmic_sample_df)
-cosmic_sample_df <- cosmic_sample_df %>% select("COSMIC_SAMPLE_ID","SAMPLE_TYPE")
-test_df <- merge(test_df, cosmic_sample_df,
-                 by.x = c("COSMIC_SAMPLE_ID"),
-                 by.y = c("COSMIC_SAMPLE_ID"),
-                 all.x = TRUE)
-
-unique(test_df$SAMPLE_TYPE)
-
-############### test code -> connect cosmic #######################################
-
-
-
-
-
-
-# dff <- hg19_df
-# new_fun <- function(x, y){
-# # do stuff
-# }
-# lapply(seq_along(1:dim(dff)[1]), function(ff){
-#   
-#   dff[ff,"dann_snv"] <- unlist(dff[ff,"dann_snv"]$dan_score)
-# ...
-# })
-# dplyr::select(.data = dff, !"version") %>% head()
-
-# 5. unset the columns which have multiple layers
 hg19_df <- hg19_df %>%
-  unnest(refseq_transcripts) %>%
-  unnest(items) %>%
-  rename_with(~ paste0("refseq_", .), .cols = c("name", "strand", "coding_impact", "function", "hgvs", "hgvs_p1", "hgvs_p3", "location", "coding_location", "canonical", "gene_symbol", "splice_distance", "ensembl_support_level", "ensembl_appris", "mane_select", "mane_plus", "uniprot_id"))  # 为所有列添加前缀
-hg19_df['version'] <- NULL
-
+  mutate(ncbi_dbsnp = if_else(map_lgl(ncbi_dbsnp, is.null), 
+                              list(list(version = NA, rsid = list(NA))), 
+                              ncbi_dbsnp))
 hg19_df <- hg19_df %>%
-  unnest(ensembl_transcripts) %>% 
-  unnest(items) %>%
-  rename_with(~ paste0("ensembl_", .), .cols = c("name", "strand", "coding_impact", "function", "hgvs", "hgvs_p1", "hgvs_p3", "location", "coding_location", "canonical", "gene_symbol", "splice_distance", "ensembl_support_level", "ensembl_appris", "mane_select", "mane_plus", "uniprot_id"))  # 为所有列添加前缀
-hg19_df['version'] <- NULL
+  unnest_wider(ncbi_dbsnp) %>%
+  unnest(rsid, names_repair = "unique")
+hg19_df <- hg19_df %>%
+  select(-version)
 
 hg19_df <- hg19_df %>%
   unnest(gnomad_exomes_coverage) %>% 
@@ -159,48 +76,122 @@ hg19_df <- hg19_df %>%
   rename_with(~ paste0("gnomad_genomes_", .), .cols = c("coverage_mean", "coverage_median","coverage_20_frequency"))
 hg19_df['version'] <- NULL
 
-# hg19_df <- hg19_df %>%
-#   mutate(dbnsfp = map_if(dbnsfp, ~ !is.null(.x), ~ transmute(.x, mutationtaster_pred, mutationtaster_score, sift_score, sift_pred))) %>%
-#   unnest(dbnsfp)
-# hg19_df['version'] <- NULL
-# print(colnames(hg19_df))
+# 5. unset the columns which have multiple layers
+############### match  ensembl_transcripts and refseq_transcripts #######################################
+# resolve ensembl_transcripts and refseq_transcripts matching problem
 
-# only variant_type = "SNV", ncbi_dbsnp will be showing, but part of variants doesn`t get ncbi_dbsnp
-hg19_df <- hg19_df %>%
-  mutate(ncbi_dbsnp = if_else(map_lgl(ncbi_dbsnp, is.null), 
-                              list(list(version = NA, rsid = list(NA))), 
-                              ncbi_dbsnp))
-hg19_df <- hg19_df %>%
-  unnest_wider(ncbi_dbsnp) %>%
-  unnest(rsid, names_repair = "unique")
-hg19_df <- hg19_df %>%
-  select(-version)
+ensembl_df <- hg19_df %>% select("original_variant","chromosome","pos","ensembl_transcripts")
+refseq_df <- hg19_df %>% select("original_variant","chromosome","pos","refseq_transcripts")
+# parse variables
+ensembl_df <- ensembl_df %>%
+  unnest(ensembl_transcripts) %>%
+  unnest(items) %>%
+  rename_with(~ paste0("ensembl_", .), .cols = c("name", "strand", "coding_impact", "function", "hgvs", "hgvs_p1", "hgvs_p3", "location", "coding_location", "canonical", "gene_symbol", "splice_distance", "ensembl_support_level", "ensembl_appris", "mane_select", "mane_plus", "uniprot_id"))  # 为所有列添加前缀
+ensembl_df['version'] <- NULL
+ensembl_df <- subset(ensembl_df, select = -c(ensembl_splice_distance, ensembl_ensembl_appris, ensembl_mane_plus, ensembl_uniprot_id, ensembl_location, ensembl_coding_location)) 
+ensembl_df <- ensembl_df %>% filter(!is.na(ensembl_hgvs) & !is.na(ensembl_hgvs_p1) & !ensembl_hgvs_p1 == 'p.?')
+# parse variables
+refseq_df <- refseq_df %>%
+  unnest(refseq_transcripts) %>%
+  unnest(items) %>%
+  rename_with(~ paste0("refseq_", .), .cols = c("name", "strand", "coding_impact", "function", "hgvs", "hgvs_p1", "hgvs_p3", "location", "coding_location", "canonical", "gene_symbol", "splice_distance", "ensembl_support_level", "ensembl_appris", "mane_select", "mane_plus", "uniprot_id"))  # 为所有列添加前缀
+refseq_df['version'] <- NULL
+refseq_df <- subset(refseq_df, select = -c(refseq_splice_distance, refseq_ensembl_appris, refseq_mane_plus, refseq_uniprot_id, refseq_location, refseq_coding_location)) 
+# filter rows which hgvs information is not empty 
+refseq_df <- refseq_df %>% filter(!is.na(refseq_hgvs) & !is.na(refseq_hgvs_p1) & !refseq_hgvs_p1 == 'p.?')
+# delete repeat rows
+ensembl_df <- unique(ensembl_df)
+refseq_df <- unique(refseq_df)
 
-hg19_df$ensembl_name <- gsub("\\..*", "", hg19_df$ensembl_name)
+# merge refseq_df and ensembl_df together by original_variant, hgvs, hgvs_p1
+matched_rows <- ensembl_df %>%
+  inner_join(refseq_df,
+             by = c("original_variant" = "original_variant",
+             "ensembl_hgvs" = "refseq_hgvs",
+             "ensembl_hgvs_p1" = "refseq_hgvs_p1"),
+            relationship = "many-to-many")
+# save refseq information for cosmic connect using
+matched_rows <- matched_rows %>% mutate(refseq_hgvs = ensembl_hgvs,
+                                        refseq_hgvs_p1 = ensembl_hgvs_p1)
+matched_rows <- matched_rows %>% select(-chromosome.y,-pos.y) %>% rename('chromosome' = 'chromosome.x','pos' = 'pos.x')
+# delete repeat rows
+matched_rows <- matched_rows %>% distinct(original_variant,ensembl_name, ensembl_hgvs, ensembl_hgvs_p1, .keep_all = TRUE)
 
-# 删除部分不重要的columns，保留的内容与cosmic做匹配
-# refseq_mane_plus，refseq_strand, refseq_uniprot_id, 
-# refseq_splice_distance,ensembl_location,ensembl_coding_location 
-# ensembl_splice_distance,ensembl_ensembl_support_level
-# ensembl_ensembl_appris, refseq_mane_plus, ensembl_mane_plus
-# ensembl_uniprot_id,ensembl_strand, error, 
-delete_list <- list('refseq_mane_plus','refseq_strand','refseq_location',
-                    'refseq_coding_location','refseq_uniprot_id','refseq_ensembl_support_level',
-                    'refseq_ensembl_appris',
-                    'refseq_splice_distance','ensembl_location','ensembl_coding_location',
-                    'ensembl_splice_distance','ensembl_ensembl_support_level',
-                    'ensembl_ensembl_appris', 'refseq_mane_plus', 'ensembl_mane_plus',
-                    'ensembl_uniprot_id','ensembl_strand', 'error')
-for (i in delete_list) {
-  hg19_df[i] <- NULL
+# select rows which didnt match
+ensembl_not_in_refseq <- anti_join(
+  ensembl_df, refseq_df,
+  by = c("original_variant" = "original_variant", 
+         "ensembl_hgvs" = "refseq_hgvs", 
+         "ensembl_hgvs_p1" = "refseq_hgvs_p1")
+)
+refseq_not_in_ensembl <- anti_join(
+  refseq_df, ensembl_df,
+  by = c("original_variant" = "original_variant", 
+         "refseq_hgvs" = "ensembl_hgvs", 
+         "refseq_hgvs_p1" = "ensembl_hgvs_p1")
+)
+
+
+###############  connect cosmic #######################################
+# read cosmic file - change file address to your local file address
+cosmic_mutation_census_df <- read.delim('/Users/stan/Desktop/internship_project/database/params 1/Cosmic_MutantCensus_Tsv_v99_GRCh37/Cosmic_MutantCensus_v99_GRCh37.tsv', sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+cosmic_sample_df <- read.delim('/Users/stan/Desktop/internship_project/database/params 1/Cosmic_Sample_Tsv_v99_GRCh37/Cosmic_Sample_v99_GRCh37.tsv', sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+
+# cosmic_mutation_census_df: CHROMOSOME, GENOME_START, MUTATION_CDS, MUTATION_AA
+# CHROMOSOME -> chromosome, GENOME_START -> pos, MUTATION_CDS -> hgvs, MUTATION_AA -> hgvs_p1
+cosmic_mutation_census_df <- cosmic_mutation_census_df %>% select('CHROMOSOME', 'GENOME_START', 'MUTATION_CDS', 'MUTATION_AA', 'COSMIC_SAMPLE_ID')
+cosmic_mutation_census_df$CHROMOSOME <- paste0("chr", cosmic_mutation_census_df$CHROMOSOME)
+cosmic_sample_df <- cosmic_sample_df %>% select("COSMIC_SAMPLE_ID","SAMPLE_TYPE")
+
+# 针对ensemble 和 refsqe 的共有的和 特有的数据都进行cosmic 匹配，然后再将所有的数据合并到hg19中去
+# search function defining
+sample_match <- function(type,df){
+  x_colum <- list()
+  merged_df <- NULL
+  if(type == 'matched' | type == 'ensembl'){
+    df$ensembl_hgvs_p1 <- ifelse(is.na(df$ensembl_hgvs_p1), NA, paste0("p.", df$ensembl_hgvs_p1)) # set same hgvsp. format with cosmic
+    x_colum <- c("chromosome", "pos", "ensembl_hgvs", "ensembl_hgvs_p1")
+  }else{
+    x_colum <- c("chromosome", "pos", "refseq_hgvs", "refseq_hgvs_p1")
+    df$refseq_hgvs_p1 <- ifelse(is.na(df$refseq_hgvs_p1), NA, paste0("p.", df$refseq_hgvs_p1))
+  }
+  merged_df <- merge(df, cosmic_mutation_census_df,
+                     by.x = x_colum,
+                     by.y = c("CHROMOSOME", "GENOME_START", "MUTATION_CDS", "MUTATION_AA"),
+                     all.x = TRUE)
+  merged_df <- unique(merged_df) #delete repeat rows
+  # merge sample file and match sample_type to each variant
+  merged_df <- merge(merged_df, cosmic_sample_df,
+                   by.x = c("COSMIC_SAMPLE_ID"),
+                   by.y = c("COSMIC_SAMPLE_ID"),
+                   all.x = TRUE)
+  return(merged_df)
 }
+#  1. 对matched 数据进行smaple type的查询
+# matched_rows_add_sample <- NULL
+# ensembl_not_in_refseq_add_sample <- NULL
+# refseq_not_in_ensembl_add_sample <- NULL
+matched_rows_add_sample <- sample_match('matched', matched_rows)
+#  2. 对ensemble特有的数据进行sample type的查询
+ensembl_not_in_refseq_add_sample <- sample_match('ensembl', ensembl_not_in_refseq)
+#  3. 对refuse特有的数据进行sample type的查询
+refseq_not_in_ensembl_add_sample <- sample_match('refseq', refseq_not_in_ensembl)
 
-hg19_df <- hg19_df[!duplicated(hg19_df),]
+transfer_df <- bind_rows(matched_rows_add_sample, ensembl_not_in_refseq_add_sample, refseq_not_in_ensembl_add_sample)
+
+hg19_df <- hg19_df %>% inner_join(transfer_df, by = c("original_variant" = "original_variant"),
+                                  relationship = "many-to-many") %>% 
+  select(-refseq_transcripts, -ensembl_transcripts)
+hg19_df <- unique(hg19_df) #delete repeat rows
 
 
 
 
 
+
+
+
+###############  resolve hg38 #######################################
 # resolve hg38 response (same step as hg19)
 hg38_df['regions'] <- NULL 
 hg38_df['gerp'] <- NULL 

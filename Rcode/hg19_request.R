@@ -33,7 +33,6 @@ search_result <- list()
 db_check_fun <- function(db_type) {
   search_result <- connect_function(varsome_19_obj) # list[[1]]: param_type, list[[2]]: list ---> searched information
   result_resolve(search_result,db_type)
-  
 }
 
 db_check_fun("varsome_19")

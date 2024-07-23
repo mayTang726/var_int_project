@@ -19,7 +19,6 @@ connect_function <- function(param) {
     return(search_result)
   }else {
     print("inter API part")
-    # the parameter2:undefined.MutationTaster  should use GET request , if others should use other request , the juadge shoud be changed # nolint: line_length_linter.
     library(httr)
     # library(jsonlite) # nolint
     if (param$req_type == "GET") { # GET request
@@ -28,7 +27,7 @@ connect_function <- function(param) {
       }else {
         headers <- ""
       }
-      # varsome get request just for liftover
+      # varsome get request just for liftover - get request
       if (param$param_type == "varsome") {
         # overlift request, the response will be a chromosome variant id in hg38
         chr_list_liftover <- list()
@@ -41,8 +40,11 @@ connect_function <- function(param) {
             filt_data <- content(response, as = "parsed")
             # chr_list_liftover[[length(chr_list_liftover) + 1]] <- filt_data
             chr_list_liftover <- append(chr_list_liftover, filt_data)
+            Sys.sleep(30)
           }else{
-            print('resuest fail!')
+            print(response)
+            Sys.sleep(30)
+            print(paste('resuest fail! status code', status_code))
           }
         }
         print(chr_list_liftover)
@@ -99,19 +101,14 @@ connect_function <- function(param) {
                 )
                 return(search_result)
               }
-            }else if (param$param_type == "civic") {
-              # 需要使用post请求
-              # print(12345)
-              # print(response)
             }
-            
           }else {
             stop("HTTP get request error: ", status_code)
           }
         }
       }
     }else{ # POST request
-      # now only varsome use post request
+      # sift and varsome
       headers <- ""
       if (length(param[["token"]]) != 0) {
         headers <- c(
@@ -152,7 +149,6 @@ connect_function <- function(param) {
         if(length(body) > 1){
           print("进入判断条件")
           response_list <- list()
-          retry_time <- 0
           for (i in 1:length(body)) {
             print("进入循环条件")
             response <- POST(param$url, body = body[[i]], add_headers(headers),encode = "json") 

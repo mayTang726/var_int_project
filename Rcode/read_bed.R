@@ -1,6 +1,3 @@
-
-# source("Rcode/db_connect_common.R")
-
 #parse .bed file
 bed_lines <- readLines('./data/hotspot_region_Oncomine_Focus_DNA_Hotspots_v1.4_hg19.bed', encoding = "UTF-8")[-1]
 bed_data <- read.table(text = bed_lines, header = FALSE, sep = "\t")
@@ -26,10 +23,6 @@ variant_info <- c(bed_data[7])
 # whole df
 bed_df = data.frame(chromosome,start_position,end_position,cosmic_id,score,strand,variant_info)
 colnames(bed_df) <- c("chromosome", "start_position", "end_position", "cosmic_id", "score", "strand", "variant_info")
-
-#get chr17 df
-# chr17_df <- subset(bed_df, chromosome == 'chr17')
-
 
 # 使用strsplit()函数将variant_info列的值分割成一个列表
 split_info <- strsplit(bed_df$variant_info, ";")
@@ -67,15 +60,33 @@ bed_df$search_column <- apply(bed_df, 1, function(row){
 # chromosome variant position - based on hg19
 varraint_array <- as.list(bed_df$search_column)
 
-library(jsonlite)
-json_data <- toJSON(varraint_array,pretty = TRUE)
-# store all chromosome variant position to the .txt file for varsome using
-write(json_data,file="data/chr_position_varriant_array_hg19.txt")
+# library(jsonlite)
+# json_data <- toJSON(varraint_array,pretty = TRUE)
+# # store all chromosome variant position to the .txt file for varsome using
+# write(json_data,file="data/chr_position_varriant_array_hg19.txt")
 
-#get chr17 df
-chr17_df <- subset(bed_df, chromosome == 'chr17')
-varraint_array_chr17 <- as.list(chr17_df$search_column)
-json_data_chr17 <- toJSON(varraint_array_chr17,pretty = TRUE)
+# because if we use all data to request varsome, it`s too big and too mucn time spend, 
+# then we separate each all data to different txt by different chromosome
+save_variant_position <- function(type){ # function for setting each chromosome variant position
+  chr_df <- subset(bed_df, chromosome == type)
+  varraint_array <- as.list(chr_df$search_column)
+  json_data <- toJSON(varraint_array,pretty = TRUE)
+  path <- paste("data/bed_parsed_hg19/",type,"_position_varriant_array_hg19.txt")
+  path <- gsub(" ","", path)
+  write(json_data,file = path)
+}
+chr_num <-as.list(unique(bed_df$chromosome))  
+for (i in 1:length(chr_num)) {
+  save_variant_position(chr_num[i])
+}
 
-# store chromosome 17 variant position to the .txt file for varsome using
-write(json_data_chr17,file="data/chr17_position_varriant_array_hg19.txt")
+
+
+
+
+
+
+
+
+
+
